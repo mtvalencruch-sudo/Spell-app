@@ -1,6 +1,0 @@
-{
-  "name": "Spell It",
-  "description": "An interactive, offline-first vowel and consonant spelling lab featuring custom vocabulary, interactive color-coded letters, speech guidance, and progress tracking.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
