@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Copy, Check, ArrowLeft, Sparkles, BookOpen, ListCollapse, MessageSquare, AlertCircle, Lock, Pencil, BarChart3, TrendingUp, Award, AlertTriangle, FileText, ClipboardList, Users } from "lucide-react";
+import { Plus, Trash2, Copy, Check, ArrowLeft, Sparkles, BookOpen, ListCollapse, MessageSquare, CircleAlert as AlertCircle, Lock, Pencil, ChartBar as BarChart3, TrendingUp, Award, TriangleAlert as AlertTriangle, FileText, ClipboardList, Users } from "lucide-react";
 import { WordSet, WordMetadata, LevelCustomization, PracticeHistory } from "../types";
 import { LetterTile } from "./LetterTile";
-import { getSetsByCodes, createSet, updateSet, deleteSet, loadAllSets } from "../utils/localSets";
+import { getSetsByCodes, createSet, updateSet, deleteSet } from "../utils/localSets";
+import { loadHistory } from "../utils/history";
 
 interface TeacherDashboardProps {
   onBack: () => void;
@@ -171,15 +172,8 @@ export function TeacherDashboard({ onBack }: TeacherDashboardProps) {
     const currentPasscode = localStorage.getItem("spell_it_teacher_passcode") || "1234";
     setPasscodeVal(currentPasscode);
 
-    // Load practice history
-    const storedHistory = localStorage.getItem("spell_it_practice_history");
-    if (storedHistory) {
-      try {
-        setAllHistory(JSON.parse(storedHistory));
-      } catch (e) {
-        console.error("Failed to parse stored history", e);
-      }
-    }
+    // Load practice history from Supabase
+    loadHistory().then(setAllHistory).catch((e) => console.error("Failed to load history", e));
   }, []);
 
   const handleUpdatePasscode = (e: React.FormEvent) => {
@@ -210,7 +204,7 @@ export function TeacherDashboard({ onBack }: TeacherDashboardProps) {
         return;
       }
 
-      const matchedSets = getSetsByCodes(codes);
+      const matchedSets = await getSetsByCodes(codes);
       setSavedSets(matchedSets);
     } catch (e) {
       console.error("Failed to load previously created sets:", e);
@@ -260,7 +254,7 @@ export function TeacherDashboard({ onBack }: TeacherDashboardProps) {
 
   const handleDeleteSet = async (code: string) => {
     try {
-      deleteSet(code);
+      await deleteSet(code);
 
       // Remove from localStorage
       const localCodesStr = localStorage.getItem("spell_it_teacher_codes");
@@ -358,12 +352,12 @@ export function TeacherDashboard({ onBack }: TeacherDashboardProps) {
       setIsSubmitting(true);
       if (editingSetCode) {
         // Update existing set
-        const data = updateSet(editingSetCode, setName, wordsList, wordMetadata, levelCustomizations);
+        const data = await updateSet(editingSetCode, setName, wordsList, wordMetadata, levelCustomizations);
         setCreatedSet(data);
         setEditingSetCode(null);
       } else {
         // Create new set
-        const data = createSet(setName, wordsList, customCode.trim() || undefined, wordMetadata, levelCustomizations);
+        const data = await createSet(setName, wordsList, customCode.trim() || undefined, wordMetadata, levelCustomizations);
         setCreatedSet(data);
         
         // Save code to teacher's browser history

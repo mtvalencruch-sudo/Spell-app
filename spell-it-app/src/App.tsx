@@ -1,28 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { WordSet, PracticeHistory, PracticeSessionWord } from "./types";
-import { DEFAULT_WORD_SETS } from "./constants/wordSets";
 import { Dashboard } from "./components/Dashboard";
 import { StudentPractice } from "./components/StudentPractice";
 import { WordSetsManager } from "./components/WordSetsManager";
 import { ProgressTracker } from "./components/ProgressTracker";
 import { TeacherDashboard } from "./components/TeacherDashboard";
-import { 
-  Trophy, 
-  Flame, 
-  LayoutDashboard, 
-  Gamepad2, 
-  BookOpen, 
-  TrendingUp,
-  Award,
-  Sun,
-  Moon,
-  Lock,
-  Unlock,
-  ShieldCheck,
-  KeyRound,
-  AlertCircle,
-  PlusCircle
-} from "lucide-react";
+import { loadAllSets, createSet as createSetDb, updateSet as updateSetDb, deleteSet as deleteSetDb, getSetByCode } from "./utils/localSets";
+import { loadHistory, addSession, clearHistory as clearHistoryDb } from "./utils/history";
+import { Trophy, Flame, LayoutDashboard, Gamepad2, BookOpen, TrendingUp, Award, Sun, Moon, Lock, Clock as Unlock, ShieldCheck, KeyRound, CircleAlert as AlertCircle, CirclePlus as PlusCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 export default function App() {
@@ -31,6 +16,8 @@ export default function App() {
   const [history, setHistory] = useState<PracticeHistory[]>([]);
   const [activeSet, setActiveSet] = useState<WordSet | null>(null);
   const [streak, setStreak] = useState(0);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [dbError, setDbError] = useState<string | null>(null);
 
   // Launching / Access gate state
   const [hasAccessedSet, setHasAccessedSet] = useState<boolean>(false);
@@ -51,43 +38,25 @@ export default function App() {
     setShowTeacherModal(true);
   };
 
-  // Load from local storage on mount
+  // Load from Supabase on mount
   useEffect(() => {
-    // Word sets
-    const storedSets = localStorage.getItem("spell_it_word_sets");
-    if (storedSets) {
+    let cancelled = false;
+    (async () => {
       try {
-        const parsed = JSON.parse(storedSets) as WordSet[];
-        const oldDefaultCodes = ["short-vowels", "long-vowels", "vowel-teams", "consonant-blends", "challenging-words"];
-        const filtered = parsed.filter(s => s.isCustom === true && !oldDefaultCodes.includes(s.code));
-        setWordSets(filtered);
-        if (filtered.length !== parsed.length) {
-          localStorage.setItem("spell_it_word_sets", JSON.stringify(filtered));
-        }
-      } catch (e) {
-        setWordSets(DEFAULT_WORD_SETS);
-        localStorage.setItem("spell_it_word_sets", JSON.stringify(DEFAULT_WORD_SETS));
+        setDbError(null);
+        const [sets, hist] = await Promise.all([loadAllSets(), loadHistory()]);
+        if (cancelled) return;
+        setWordSets(sets);
+        setHistory(hist);
+        calculateStreak(hist);
+      } catch (e: any) {
+        if (!cancelled) setDbError(e.message || "Failed to load data.");
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
-    } else {
-      setWordSets(DEFAULT_WORD_SETS);
-      localStorage.setItem("spell_it_word_sets", JSON.stringify(DEFAULT_WORD_SETS));
-    }
+    })();
 
-    // Practice History
-    const storedHistory = localStorage.getItem("spell_it_practice_history");
-    if (storedHistory) {
-      try {
-        const parsedHistory = JSON.parse(storedHistory) as PracticeHistory[];
-        setHistory(parsedHistory);
-        
-        // Calculate Streak from stored history
-        calculateStreak(parsedHistory);
-      } catch (e) {
-        setHistory([]);
-      }
-    }
-
-    // Theme preference
+    // Theme preference (still local-only)
     const storedTheme = localStorage.getItem("spell_it_theme");
     if (storedTheme === "dark") {
       setTheme("dark");
@@ -97,13 +66,15 @@ export default function App() {
       document.documentElement.classList.remove("dark");
     }
 
-    // Teacher settings preference
+    // Teacher passcode (still local-only — UI gate, not shared data)
     const storedTeacherCode = localStorage.getItem("spell_it_teacher_passcode") || localStorage.getItem("spell_it_teacher_code");
     if (storedTeacherCode) {
       setTeacherCode(storedTeacherCode);
     } else {
       localStorage.setItem("spell_it_teacher_passcode", "1234");
     }
+
+    return () => { cancelled = true; };
   }, []);
 
   // Auto lock teacher mode when leaving the teacher tab
@@ -114,17 +85,10 @@ export default function App() {
     }
   }, [activeTab]);
 
-  // Listen for custom wordset update events from TeacherDashboard or other sources
+  // Reload word sets when another part of the app mutates them (TeacherDashboard, etc.)
   useEffect(() => {
     const handleUpdate = () => {
-      const storedSets = localStorage.getItem("spell_it_word_sets");
-      if (storedSets) {
-        try {
-          setWordSets(JSON.parse(storedSets));
-        } catch (e) {
-          console.error(e);
-        }
-      }
+      loadAllSets().then((sets) => setWordSets(sets)).catch(console.error);
     };
     window.addEventListener("spell-it-wordsets-updated", handleUpdate);
     return () => {
@@ -253,7 +217,21 @@ export default function App() {
       setActiveSet(foundSet);
       setActiveTab("practice");
     } else {
-      setLaunchError("Spelling set not found. Check the code and try again!");
+      // Fall back to a Supabase lookup in case the set exists but isn't in memory yet
+      setLaunchError(null);
+      getSetByCode(cleaned).then((data) => {
+        if (data) {
+          setLaunchCode("");
+          setHasAccessedSet(true);
+          setActiveSet(data);
+          setWordSets((prev) => (prev.some((s) => s.code === data.code) ? prev : [data, ...prev]));
+          setActiveTab("practice");
+        } else {
+          setLaunchError("Spelling set not found. Check the code and try again!");
+        }
+      }).catch(() => {
+        setLaunchError("Spelling set not found. Check the code and try again!");
+      });
     }
   };
 
@@ -267,13 +245,10 @@ export default function App() {
     const sName = sessionStorage.getItem("spell_it_student_name") || localStorage.getItem("spell_it_student_name") || "Guest Student";
     const sClass = sessionStorage.getItem("spell_it_student_class") || localStorage.getItem("spell_it_student_class") || "General";
 
-    // Build new history item
-    const newSession: PracticeHistory = {
-      id: `session-${Date.now()}`,
-      setDate: new Date().toISOString(),
+    const newSession = {
       correctCount,
       totalWords,
-      streak: streak + 1, // temporary updated streak
+      streak: streak + 1,
       listCode: activeSet.code,
       listName: activeSet.name,
       details: completedWords,
@@ -281,12 +256,13 @@ export default function App() {
       studentClass: sClass
     };
 
-    const updatedHistory = [newSession, ...history];
-    setHistory(updatedHistory);
-    localStorage.setItem("spell_it_practice_history", JSON.stringify(updatedHistory));
-    
-    // Recalculate streak based on new history
-    calculateStreak(updatedHistory);
+    addSession(newSession).then((saved) => {
+      if (saved) {
+        const updatedHistory = [saved, ...history];
+        setHistory(updatedHistory);
+        calculateStreak(updatedHistory);
+      }
+    });
 
     // Route to Progress Report to review achievements
     setActiveTab("progress");
@@ -303,13 +279,10 @@ export default function App() {
     const sName = sessionStorage.getItem("spell_it_student_name") || localStorage.getItem("spell_it_student_name") || "Guest Student";
     const sClass = sessionStorage.getItem("spell_it_student_class") || localStorage.getItem("spell_it_student_class") || "General";
 
-    // Build new history item
-    const newSession: PracticeHistory = {
-      id: `session-${Date.now()}`,
-      setDate: new Date().toISOString(),
+    const newSession = {
       correctCount,
       totalWords,
-      streak: streak + 1, // temporary updated streak
+      streak: streak + 1,
       listCode: activeSet.code,
       listName: activeSet.name,
       details: completedWords,
@@ -317,52 +290,85 @@ export default function App() {
       studentClass: sClass
     };
 
-    const updatedHistory = [newSession, ...history];
-    setHistory(updatedHistory);
-    localStorage.setItem("spell_it_practice_history", JSON.stringify(updatedHistory));
-    
-    // Recalculate streak based on new history
-    calculateStreak(updatedHistory);
+    addSession(newSession).then((saved) => {
+      if (saved) {
+        const updatedHistory = [saved, ...history];
+        setHistory(updatedHistory);
+        calculateStreak(updatedHistory);
+      }
+    });
   };
 
   // Create Custom Word Set
   const handleCreateSet = (newSet: WordSet) => {
-    const updatedSets = [newSet, ...wordSets];
-    setWordSets(updatedSets);
-    localStorage.setItem("spell_it_word_sets", JSON.stringify(updatedSets));
+    createSetDb(newSet.name, newSet.words, newSet.code, newSet.wordMetadata, newSet.levelCustomizations)
+      .then((created) => {
+        setWordSets((prev) => [created, ...prev.filter((s) => s.code !== created.code)]);
+      })
+      .catch((e) => {
+        console.error("Failed to create set", e);
+        alert(e.message || "Failed to create spelling set.");
+      });
   };
 
   // Update Existing Word Set
   const handleUpdateSet = (updatedSet: WordSet) => {
-    const updatedSets = wordSets.map(set => set.code === updatedSet.code ? updatedSet : set);
-    setWordSets(updatedSets);
-    localStorage.setItem("spell_it_word_sets", JSON.stringify(updatedSets));
+    updateSetDb(updatedSet.code, updatedSet.name, updatedSet.words, updatedSet.wordMetadata, updatedSet.levelCustomizations)
+      .then((saved) => {
+        setWordSets((prev) => prev.map((set) => (set.code === saved.code ? saved : set)));
+      })
+      .catch((e) => {
+        console.error("Failed to update set", e);
+        alert(e.message || "Failed to update spelling set.");
+      });
   };
 
   // Delete Custom Word Set
   const handleDeleteSet = (code: string) => {
-    const updatedSets = wordSets.filter(set => set.code !== code);
-    setWordSets(updatedSets);
-    localStorage.setItem("spell_it_word_sets", JSON.stringify(updatedSets));
+    deleteSetDb(code)
+      .then(() => {
+        setWordSets((prev) => prev.filter((set) => set.code !== code));
+      })
+      .catch((e) => {
+        console.error("Failed to delete set", e);
+        alert(e.message || "Failed to delete spelling set.");
+      });
   };
 
   // Import Word Sets list
   const handleImportSets = (imported: WordSet[]) => {
-    // Append imported sets, ensuring no duplicated codes
-    const existingCodes = new Set(wordSets.map(set => set.code));
-    const uniqueImported = imported.filter(set => !existingCodes.has(set.code));
-    
-    const updatedSets = [...wordSets, ...uniqueImported];
-    setWordSets(updatedSets);
-    localStorage.setItem("spell_it_word_sets", JSON.stringify(updatedSets));
+    Promise.all(
+      imported.map((set) =>
+        createSetDb(set.name, set.words, set.code, set.wordMetadata, set.levelCustomizations).catch((e) => {
+          console.error(`Failed to import set "${set.name}"`, e);
+          return null;
+        })
+      )
+    ).then((results) => {
+      const created = results.filter((r): r is WordSet => r !== null);
+      if (created.length > 0) {
+        setWordSets((prev) => [...created, ...prev.filter((s) => !created.some((c) => c.code === s.code))]);
+      }
+    });
   };
 
   // Clear Practice Logs
   const handleClearHistory = () => {
-    setHistory([]);
-    setStreak(0);
-    localStorage.removeItem("spell_it_practice_history");
+    clearHistoryDb().then(() => {
+      setHistory([]);
+      setStreak(0);
+    });
   };
+
+  // Loading gate while initial Supabase fetch is in flight
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center gap-4 p-4">
+        <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+        <p className="text-slate-500 text-sm font-medium">Loading your spelling lab…</p>
+      </div>
+    );
+  }
 
   // Early return for initial launch state if no spelling set has been accessed and we are not in teacher administration mode
   if (!hasAccessedSet && !isTeacher) {
@@ -769,22 +775,7 @@ export default function App() {
                 </div>
 
                 <form 
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const cleaned = launchCode.trim().toUpperCase();
-                    if (!cleaned) return;
-
-                    const foundSet = wordSets.find(s => s.code.toUpperCase() === cleaned);
-                    if (foundSet) {
-                      setLaunchError(null);
-                      setLaunchCode("");
-                      setActiveSet(foundSet);
-                      setHasAccessedSet(true);
-                      setActiveTab("practice");
-                    } else {
-                      setLaunchError("Spelling set not found. Check the code and try again!");
-                    }
-                  }} 
+                  onSubmit={handleLaunchSubmit} 
                   className="space-y-4 max-w-xs mx-auto relative z-10"
                 >
                   <div className="space-y-1.5">

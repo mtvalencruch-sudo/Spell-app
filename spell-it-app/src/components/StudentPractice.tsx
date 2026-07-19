@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { ArrowLeft, Sparkles, CheckCircle2, Lock, HelpCircle, Trophy, RefreshCw, XCircle, BookOpen, Brain, Play, Check, Home } from "lucide-react";
+import { ArrowLeft, Sparkles, CircleCheck as CheckCircle2, Lock, Circle as HelpCircle, Trophy, RefreshCw, Circle as XCircle, BookOpen, Brain, Play, Check, Hop as Home } from "lucide-react";
 import { WordSet, PRACTICE_LEVELS, PracticeLevel, PracticeSessionWord } from "../types";
 import { LetterTile } from "./LetterTile";
 import { VirtualKeyboard } from "./VirtualKeyboard";
 import { isVowel, isConsonant, getLetterType } from "../utils/letterUtils";
 import { getSetByCode } from "../utils/localSets";
-
 interface StudentPracticeProps {
   accessCode: string;
   onBack: () => void;
@@ -296,7 +295,7 @@ export function StudentPractice({ accessCode, onBack, onSaveHistory }: StudentPr
       setLoading(true);
       setErrorMsg(null);
       
-      const data = getSetByCode(accessCode);
+      const data = await getSetByCode(accessCode);
       if (!data) {
         throw new Error(`Vocabulary set with code "${accessCode}" not found.`);
       }
