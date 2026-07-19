@@ -17,7 +17,6 @@ export default function App() {
   const [activeSet, setActiveSet] = useState<WordSet | null>(null);
   const [streak, setStreak] = useState(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [dbError, setDbError] = useState<string | null>(null);
 
   // Launching / Access gate state
   const [hasAccessedSet, setHasAccessedSet] = useState<boolean>(false);
@@ -38,19 +37,18 @@ export default function App() {
     setShowTeacherModal(true);
   };
 
-  // Load from Supabase on mount
+  // Load word sets and history from localStorage on mount
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        setDbError(null);
         const [sets, hist] = await Promise.all([loadAllSets(), loadHistory()]);
         if (cancelled) return;
         setWordSets(sets);
         setHistory(hist);
         calculateStreak(hist);
       } catch (e: any) {
-        if (!cancelled) setDbError(e.message || "Failed to load data.");
+        console.error("Failed to load data", e);
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -217,7 +215,7 @@ export default function App() {
       setActiveSet(foundSet);
       setActiveTab("practice");
     } else {
-      // Fall back to a Supabase lookup in case the set exists but isn't in memory yet
+      // Fall back to a lookup in case the set exists but isn't in memory yet
       setLaunchError(null);
       getSetByCode(cleaned).then((data) => {
         if (data) {
@@ -360,7 +358,7 @@ export default function App() {
     });
   };
 
-  // Loading gate while initial Supabase fetch is in flight
+  // Loading gate while initial data loads
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center gap-4 p-4">

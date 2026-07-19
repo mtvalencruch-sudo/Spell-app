@@ -172,7 +172,7 @@ export function TeacherDashboard({ onBack }: TeacherDashboardProps) {
     const currentPasscode = localStorage.getItem("spell_it_teacher_passcode") || "1234";
     setPasscodeVal(currentPasscode);
 
-    // Load practice history from Supabase
+    // Load practice history from localStorage
     loadHistory().then(setAllHistory).catch((e) => console.error("Failed to load history", e));
   }, []);
 
