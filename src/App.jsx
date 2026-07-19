@@ -9,7 +9,7 @@ import { loadAllSets, createSet as createSetDb, updateSet as updateSetDb, delete
 import { loadHistory, addSession, clearHistory as clearHistoryDb } from "./utils/history.js";
 import { Trophy, Flame, LayoutDashboard, Gamepad2, BookOpen, TrendingUp, Award, Sun, Moon, Lock, Clock as Unlock, ShieldCheck, KeyRound, CircleAlert as AlertCircle, CirclePlus as PlusCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { supabase } from './supabaseClient.js';
+import { supabase } from './supabaseClient';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState < "dashboard" | "newset" | "practice" | "wordsets" | "progress" | "teacher" > ("dashboard");
