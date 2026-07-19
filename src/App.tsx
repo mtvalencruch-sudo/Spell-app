@@ -17,6 +17,7 @@ export default function App() {
   const [activeSet, setActiveSet] = useState<WordSet | null>(null);
   const [streak, setStreak] = useState(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [user, setUser] = useState<any>(null);
 
   // Launching / Access gate state
   const [hasAccessedSet, setHasAccessedSet] = useState<boolean>(false);
@@ -202,11 +203,29 @@ export default function App() {
     setActiveTab("practice");
   };
 
-  const handleLaunchSubmit = (e: React.FormEvent) => {
+  const handleLaunchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleaned = launchCode.trim().toUpperCase();
     if (!cleaned) return;
 
+    // 1. Generate an anonymous session for the kid if they don't have one yet
+    let currentUser = user;
+    if (!currentUser) {
+      const placeholders = ['🐱', '🦊', '🦄', '🤖', '🚀'];
+      const randomAvatar = placeholders[Math.floor(Math.random() * placeholders.length)];
+      const randomNickname = `Speller_${Math.floor(1000 + Math.random() * 9000)}`;
+
+      const { data, error } = await supabase.auth.signInAnonymously({
+        options: { data: { nickname: randomNickname, avatar: randomAvatar } }
+      });
+      
+      if (!error && data.user) {
+        currentUser = data.user;
+        setUser(data.user);
+      }
+    }
+
+    // 2. Proceed with unlocking the spelling set as usual
     const foundSet = wordSets.find(s => s.code.toUpperCase() === cleaned);
     if (foundSet) {
       setLaunchError(null);
@@ -215,9 +234,8 @@ export default function App() {
       setActiveSet(foundSet);
       setActiveTab("practice");
     } else {
-      // Fall back to a lookup in case the set exists but isn't in memory yet
       setLaunchError(null);
-      getSetByCode(cleaned).then((data) => {
+      getSetByCode(cleaned).then((data: any) => {
         if (data) {
           setLaunchCode("");
           setHasAccessedSet(true);
@@ -231,6 +249,7 @@ export default function App() {
         setLaunchError("Spelling set not found. Check the code and try again!");
       });
     }
+  };
   };
 
   // Callback when a user finishes a practice session
@@ -634,6 +653,12 @@ export default function App() {
             <p className="text-slate-400 text-xs font-bold uppercase tracking-widest hidden sm:block font-display">
               SPELLING LAB
             </p>
+            {user && (
+  <div className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 ml-3">
+    <span>{user.user_metadata?.avatar || '👾'}</span>
+    <span className="font-display">{user.user_metadata?.nickname || 'Young Speller'}</span>
+  </div>
+)}
           </div>
 
           {/* Navigation Controls */}
