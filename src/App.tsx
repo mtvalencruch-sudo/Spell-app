@@ -1,38 +1,38 @@
 import React, { useState, useEffect } from "react";
-import { WordSet, PracticeHistory, PracticeSessionWord } from "./types.js";
-import { Dashboard } from "./components/Dashboard.js";
-import { StudentPractice } from "./components/StudentPractice.js";
-import { WordSetsManager } from "./components/WordSetsManager.js";
-import { ProgressTracker } from "./components/ProgressTracker.js";
-import { TeacherDashboard } from "./components/TeacherDashboard.js";
+import { WordSet, PracticeHistory, PracticeSessionWord } from "./types";
+import { Dashboard } from "./components/Dashboard";
+import { StudentPractice } from "./components/StudentPractice";
+import { WordSetsManager } from "./components/WordSetsManager";
+import { ProgressTracker } from "./components/ProgressTracker";
+import { TeacherDashboard } from "./components/TeacherDashboard";
 import { loadAllSets, createSet as createSetDb, updateSet as updateSetDb, deleteSet as deleteSetDb, getSetByCode } from "./utils/localSets.js";
 import { loadHistory, addSession, clearHistory as clearHistoryDb } from "./utils/history.js";
 import { Trophy, Flame, LayoutDashboard, Gamepad2, BookOpen, TrendingUp, Award, Sun, Moon, Lock, Clock as Unlock, ShieldCheck, KeyRound, CircleAlert as AlertCircle, CirclePlus as PlusCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { supabase } from './supabaseClient';
+import { supabase } from '../supabaseClient';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState < "dashboard" | "newset" | "practice" | "wordsets" | "progress" | "teacher" > ("dashboard");
-  const [wordSets, setWordSets] = useState < WordSet > ([]);
-  const [history, setHistory] = useState < PracticeHistory > ([]);
-  const [activeSet, setActiveSet] = useState < WordSet | null > (null);
+  const [activeTab, setActiveTab] = useState<"dashboard" | "newset" | "practice" | "wordsets" | "progress" | "teacher">("dashboard");
+  const [wordSets, setWordSets] = useState<WordSet>([]);
+  const [history, setHistory] = useState<PracticeHistory>([]);
+  const [activeSet, setActiveSet] = useState<WordSet | null>(null);
   const [streak, setStreak] = useState(0);
-  const [isLoading, setIsLoading] = useState < boolean > (true);
-  const [user, setUser] = useState < any > (null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [user, setUser] = useState<any>(null);
 
   // Launching / Access gate state
-  const [hasAccessedSet, setHasAccessedSet] = useState < boolean > (false);
-  const [launchCode, setLaunchCode] = useState < string > ("");
-  const [launchError, setLaunchError] = useState < string | null > (null);
+  const [hasAccessedSet, setHasAccessedSet] = useState<boolean>(false);
+  const [launchCode, setLaunchCode] = useState<string>("");
+  const [launchError, setLaunchError] = useState<string | null>(null);
 
   // Dark/Light Theme configuration (default is Light, clean Slate)
-  const [theme, setTheme] = useState < "light" | "dark" > ("light");
+  const [theme, setTheme] = useState<"light" | "dark">("light");
 
   // Teacher Zone State
-  const [isTeacher, setIsTeacher] = useState < boolean > (false);
-  const [teacherCode, setTeacherCode] = useState < string > ("1234");
-  const [showTeacherModal, setShowTeacherModal] = useState < boolean > (false);
-  const [passcodeError, setPasscodeError] = useState < string | null > (null);
+  const [isTeacher, setIsTeacher] = useState<boolean>(false);
+  const [teacherCode, setTeacherCode] = useState<string>("1234");
+  const [showTeacherModal, setShowTeacherModal] = useState<boolean>(false);
+  const [passcodeError, setPasscodeError] = useState<string | null>(null);
 
   const openTeacherModal = () => {
     setPasscodeError(null);
@@ -122,7 +122,7 @@ export default function App() {
     }
 
     // Traverse history to check consecutive calendar days
-    const uniqueDays = new Set < string > ("");
+    const uniqueDays = new Set<string>("");
     sorted.forEach(item => {
       uniqueDays.add(new Date(item.setDate).toDateString());
     });
