@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { WordSet, PracticeHistory, PracticeSessionWord } from "./types";
+import type { WordSet, PracticeHistory, PracticeSessionWord } from "./types";
 import { Dashboard } from "./components/Dashboard";
 import { StudentPractice } from "./components/StudentPractice";
 import { WordSetsManager } from "./components/WordSetsManager";
@@ -13,8 +13,8 @@ import { supabase } from '../supabaseClient';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "newset" | "practice" | "wordsets" | "progress" | "teacher">("dashboard");
-  const [wordSets, setWordSets] = useState<WordSet>([]);
-  const [history, setHistory] = useState<PracticeHistory>([]);
+  const [wordSets, setWordSets] = useState<WordSet[]>([]);
+  const [history, setHistory] = useState<PracticeHistory[]>([]);
   const [activeSet, setActiveSet] = useState<WordSet | null>(null);
   const [streak, setStreak] = useState(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -361,7 +361,7 @@ export default function App() {
         })
       )
     ).then((results) => {
-      const created = results.filter((r) => r instanceof WordSet && r !== null);
+      const created = results.filter((r): r is WordSet => r !== null);
       if (created.length > 0) {
         setWordSets((prev) => [...created, ...prev.filter((s) => !created.some((c) => c.code === s.code))]);
       }
